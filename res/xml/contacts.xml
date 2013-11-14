@@ -61,5 +61,7 @@
 		        type="birthday"
 		        yearOptional="false" />
 		</DataKind>
+
+		<DataKind kind="sip_address" maxOccurs="1" />
 	</EditSchema>
 </ContactsAccountType>

@@ -24,6 +24,7 @@ import net.fortuna.ical4j.data.ParserException;
 import net.fortuna.ical4j.model.Date;
 import net.fortuna.ical4j.model.ValidationException;
 import net.fortuna.ical4j.vcard.GroupRegistry;
+import net.fortuna.ical4j.vcard.Parameter;
 import net.fortuna.ical4j.vcard.ParameterFactoryRegistry;
 import net.fortuna.ical4j.vcard.Property;
 import net.fortuna.ical4j.vcard.Property.Id;
@@ -32,6 +33,7 @@ import net.fortuna.ical4j.vcard.VCard;
 import net.fortuna.ical4j.vcard.VCardBuilder;
 import net.fortuna.ical4j.vcard.VCardOutputter;
 import net.fortuna.ical4j.vcard.parameter.Type;
+import net.fortuna.ical4j.vcard.parameter.Value;
 import net.fortuna.ical4j.vcard.property.Address;
 import net.fortuna.ical4j.vcard.property.BDay;
 import net.fortuna.ical4j.vcard.property.Email;
@@ -56,6 +58,8 @@ import at.bitfire.davdroid.ical4j.Starred;
 @ToString(callSuper = true)
 public class Contact extends Resource {
 	private final static String TAG = "davdroid.Contact";
+	private final static String SCHEME_SIP = "sip";
+	private final static String SCHEME_SIPS = "sips";
 	
 	@Getter @Setter boolean starred;
 	
@@ -68,6 +72,7 @@ public class Contact extends Resource {
 	
 	@Getter @Setter private Date birthDay;
 
+	@Getter @Setter private URI sipAddress;
 	
 	public Contact(String name, String ETag) {
 		super(name, ETag);
@@ -179,9 +184,24 @@ public class Contact extends Resource {
 		for (Property p : vcard.getProperties(Id.EMAIL))
 			emails.add((Email)p);
 		
-		for (Property p : vcard.getProperties(Id.TEL))
-			phoneNumbers.add((Telephone)p);
+		for (Property p : vcard.getProperties(Id.TEL)) {
+			Telephone phone = (Telephone)p;
+			Parameter valueParam = p.getParameter(Parameter.Id.VALUE);
+			// Handle first sip and sips uri as
+			// SipAddress
+			if (sipAddress == null &&
+			    Value.URI.equals(valueParam)) {
+				URI uri = phone.getUri();
+				if (uri.getScheme().equalsIgnoreCase(SCHEME_SIP)
+				    || uri.getScheme().equalsIgnoreCase(SCHEME_SIPS)) {
+					sipAddress = uri;
+					continue;
+				}
+			}
 		
+			phoneNumbers.add((Telephone)p);
+		}
+
 		for (Property p : vcard.getProperties(Id.ADR))
 			addresses.add((Address)p);
 		
@@ -255,6 +275,8 @@ public class Contact extends Resource {
 		for (String note : notes)
 			properties.add(new Note(note));
 		
+		properties.add(new Telephone(sipAddress));
+
 		StringWriter writer = new StringWriter();
 		new VCardOutputter(true).output(vcard, writer);
 		return writer.toString();

@@ -37,6 +37,7 @@ import android.provider.ContactsContract.CommonDataKinds.Nickname;
 import android.provider.ContactsContract.CommonDataKinds.Note;
 import android.provider.ContactsContract.CommonDataKinds.Phone;
 import android.provider.ContactsContract.CommonDataKinds.Photo;
+import android.provider.ContactsContract.CommonDataKinds.SipAddress;
 import android.provider.ContactsContract.CommonDataKinds.StructuredName;
 import android.provider.ContactsContract.CommonDataKinds.StructuredPostal;
 import android.provider.ContactsContract.CommonDataKinds.Website;
@@ -291,6 +292,25 @@ public class LocalAddressBook extends LocalCollection<Contact> {
 		while (cursor != null && cursor.moveToNext())
 			c.addNote(new String(cursor.getString(0)));
 		
+		// SIP addresses
+		cursor = providerClient.query(dataURI(), new String[] { SipAddress.SIP_ADDRESS },
+				SipAddress.RAW_CONTACT_ID + "=? AND " + Data.MIMETYPE + "=?",
+				new String[] { String.valueOf(c.getLocalID()), SipAddress.CONTENT_ITEM_TYPE }, null);
+		while (cursor != null && cursor.moveToNext()) {
+			String sipAddr = cursor.getString(0);
+			try {
+				URI uri = new URI(sipAddr);
+				if (uri.getScheme() == null)
+					uri = new URI("sip:" + sipAddr);
+				if (c.getSipAddress() == null)
+					c.setSipAddress(uri);
+				else
+					Log.w(TAG, "SIP address ignored - only one allowed: " + uri);
+			} catch (URISyntaxException e) {
+				Log.w(TAG, "Found invalid SIP address URI in database: " + sipAddr);
+			}
+		}
+
 		c.populated = true;
 		return;
 	}
@@ -372,6 +392,9 @@ public class LocalAddressBook extends LocalCollection<Contact> {
 		
 		for (String note : contact.getNotes())
 			pendingOperations.add(buildNote(newDataInsertBuilder(localID, backrefIdx), note).build());
+
+		pendingOperations.add(buildSipAddress(newDataInsertBuilder(localID, backrefIdx), contact.getSipAddress()).build());
+
 	}
 	
 	@Override
@@ -535,5 +558,12 @@ public class LocalAddressBook extends LocalCollection<Contact> {
 		return builder
 			.withValue(Data.MIMETYPE, Note.CONTENT_ITEM_TYPE)
 			.withValue(Note.NOTE, note);
+	}
+
+	protected Builder buildSipAddress(Builder builder, URI uri) {
+		String sipAddr = uri.toString();
+		return builder
+			.withValue(Data.MIMETYPE, SipAddress.CONTENT_ITEM_TYPE)
+			.withValue(SipAddress.SIP_ADDRESS, sipAddr);
 	}
 }
